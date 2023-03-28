@@ -12,7 +12,7 @@ let bottom_bar;
 let unlit_light;
 let lit_light;
 
-function proportionalize(a){
+function prop(a){
     return (a / 720) * CANVAS_WIDTH;
 }
 
@@ -21,25 +21,101 @@ function proportionalize(a){
 // let font_regular;
 
 function preload() {
-    devil_images.push(loadImage('./static/frame0.png'));
-    devil_images.push(loadImage('./static/frame1.png'));
-    bottom_bar = loadImage('./static/bottom_bar.png');
-    lit_light = loadImage('./static/lit_light.png');
-    unlit_light = loadImage('./static/unlit_light.png');
+    // devil_images.push(loadImage('./static/frame0.png'));
+    // devil_images.push(loadImage('./static/frame1.png'));
+    // bottom_bar = loadImage('./static/bottom_bar.png');
+    // lit_light = loadImage('./static/lit_light.png');
+    // unlit_light = loadImage('./static/unlit_light.png');
     // font_bold = loadFont('./static/LibreBasketville-Bold.ttf');
     // font_regular = loadFont('./static/LibreBasketville-Regular.ttf');
     // font_italic = loadFont('./static/LibreBasketville-Italic.ttf');
 }
+
+let lights;
 
 function setup() {
 
     createCanvas(CANVAS_WIDTH, CANVAS_HEIGHT);
     frameRate(30);
     blink_at = floor(randomGaussian(blink_frequency_mean, 10));
+    lights = new Lights(2);
+    
 }
 
 function draw() {
     drawBase();
+}
+
+class Lights {
+    constructor(level = 1, x = 5, y = 5){
+        this.x = x;
+        this.y = y;
+
+        this.lights = [];
+        for (let i = 0; i < x; i++) {
+            this.lights.push([]);
+            for (let j = 0; j < y; j++) {
+                this.lights[i].push(false);
+            }
+        }
+
+        switch (level) {
+            case 0:
+                this.presses_needed = [
+                    [false,  false, false, false, false],
+                    [false, false, false, false, false],
+                    [false, false, false,  false, false],
+                    [false, false, false, false, false],
+                    [false,  false, false, false, false]
+                ];
+            break;
+            case 1:
+                this.presses_needed = [
+                    [true,  false, false, false, true],
+                    [false, false, false, false, false],
+                    [false, false, true,  false, false],
+                    [false, false, false, false, false],
+                    [true,  false, false, false, true]
+                ];
+
+            break;
+            case 2:
+                this.presses_needed = [
+                    [true,  false, true,  false, true],
+                    [false, true,  false, true,  false],
+                    [true,  false, false, false, true],
+                    [false, true,  false, true,  false],
+                    [true,  false, true,  false, true]
+                ];
+                
+            break;
+        }
+
+        for (let i = 0; i < x; i++) {
+            for (let j = 0; j < y; j++) {
+                if (this.presses_needed[i][j])
+                    this.press(i, j, true); 
+            }
+        }
+    }
+
+    at(x, y) {
+        return this.lights[x][y];
+    }
+        
+    press(x, y, setup = false){
+
+        if (!setup) this.presses_needed[x][y] == !this.presses_needed[x][y];
+
+        if (x >= 0 && x < this.x && y >= 0 && y < this.y) this.lights[x][y] = !this.lights[x][y];
+        if (x + 1 >= 0 && x + 1 < this.x && y >= 0 && y < this.y) this.lights[x+1][y] = !this.lights[x+1][y];
+        if (x - 1 >= 0 && x - 1 < this.x && y >= 0 && y < this.y) this.lights[x-1][y] = !this.lights[x-1][y];
+        if (x >= 0 && x < this.x && y + 1 >= 0 && y + 1 < this.y) this.lights[x][y+1] = !this.lights[x][y+1];
+        if (x >= 0 && x < this.x && y - 1 >= 0 && y - 1 < this.y) this.lights[x][y-1] = !this.lights[x][y-1];
+
+    }  
+
+
 }
 
 function drawBase() {
@@ -49,7 +125,7 @@ function drawBase() {
     push();
     noFill();
     stroke("#5187c1");
-    strokeWeight(proportionalize(3));
+    strokeWeight(prop(3));
     rect(width * 0.037, 1, width * 0.92, height - 2);
     pop();
 
@@ -171,14 +247,14 @@ function drawBase() {
         fill("#570f54");
         ellipse(width * 0.173, height * 0.807,  width * 0.27, height * 0.11)
 
-        if (blink_frames) {
-            image(devil_images[1], width * 0.05, height * 0.4, width * 0.24, height * 0.45);
-            blink_frames -= 1;
-        } else image(devil_images[0], width * 0.05, height * 0.4, width * 0.24, height * 0.45);
-        if (frameCount == blink_at) {
-            blink_frames = random(blink_length);
-            blink_at += floor(randomGaussian(blink_frequency_mean, 20));
-        }
+        // if (blink_frames) {
+        //     image(devil_images[1], width * 0.05, height * 0.4, width * 0.24, height * 0.45);
+        //     blink_frames -= 1;
+        // } else image(devil_images[0], width * 0.05, height * 0.4, width * 0.24, height * 0.45);
+        // if (frameCount == blink_at) {
+        //     blink_frames = random(blink_length);
+        //     blink_at += floor(randomGaussian(blink_frequency_mean, 20));
+        // }
 
     pop();
 
@@ -204,7 +280,7 @@ function drawBase() {
     pop();
 
     // bottom bar
-    image(bottom_bar, width * 0.05, height * 0.89, width * 0.88, height * 0.1);
+    // image(bottom_bar, width * 0.05, height * 0.89, width * 0.88, height * 0.1);
 
     // LIGHTS 
     // board dimensions: width * .55, height * .73 
@@ -215,7 +291,7 @@ function drawBase() {
         stroke("#411a13");
         fill("yellow");
 
-        let rad = proportionalize(35);
+        let rad = prop(35);
 
         translate( width * .55 / 6, height * .73 / 6);
         for(let i = 0; i < 5; ++i){
@@ -228,24 +304,43 @@ function drawBase() {
                         translate(0.01 * width, 0.01 * height);
                         circle(0, 0, rad);
                     pop();
-                        // circle(0, 0, rad);
+                        if (!lights.at(i, j))
+                            fill("brown")
+                        circle(0, 0, rad);
                         // TEMP
-                        if ((2 * i + j) % 6 > 2)
-                            image(lit_light, -rad/2, -rad/2, rad, rad);
-                            else 
-                        image(unlit_light, -rad/2, -rad/2, rad, rad);
+                        // if ((2 * i + j) % 6 > 2)
+                        //     image(lit_light, -rad/2, -rad/2, rad, rad);
+                        //     else 
+                        // image(unlit_light, -rad/2, -rad/2, rad, rad);
                         //
                     push();
                         noFill();
                         stroke("#a12f92");
-                        strokeWeight(proportionalize(2));
-                        circle(0, 0, proportionalize(45));
-                        strokeWeight(proportionalize(3));
-                        circle(0, 0, proportionalize(52));
+                        strokeWeight(prop(2));
+                        circle(0, 0, prop(45));
+                        strokeWeight(prop(3));
+                        circle(0, 0, prop(52));
                     pop();
                 pop();
             }
         }
     pop();
         
+}
+
+function mouseClicked(e) {
+    let x = width * 0.35;
+    let y = height * 0.075;
+    x += width * .55 / 6;
+    y += height * .73 / 6;
+    
+    for(let i = 0; i < 5; ++i){
+        for(let j = 0; j < 5; ++j){
+            let tx = x + i * width * .55 / 6;
+            let ty = y + j * height * .73 / 6;
+            if(dist(tx, ty, mouseX, mouseY) < prop(35))
+                lights.press(i, j);
+                console.log("pushed: " + i + j);
+        }
+    }
 }
