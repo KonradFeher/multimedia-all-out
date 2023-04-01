@@ -1,5 +1,5 @@
-// TODO optimize draw a little, don't need to redraw everything every frame 
-// TODO win condition checks
+// TODO optimize draw a little --- idk it runs smooth now
+// TODO SOUND
 
 // CONSTANTS:
 const CANVAS_WIDTH = 720;
@@ -7,6 +7,8 @@ const CANVAS_HEIGHT = CANVAS_WIDTH * (480 / 720);
 
 const blink_frequency_mean = 80;
 const blink_length = [1, 4];
+
+let sortByTime = false;
 
 let devil_images = [];
 let blink_frames = 0;
@@ -26,13 +28,80 @@ let font_bold;
 let font_italic;
 let font_regular;
 
+let records;
+
+
+const game_levels = [
+    [
+        [false, false, false, false, false],
+        [false, false, false, false, false],
+        [false, false, true, false, false],
+        [false, false, false, false, false],
+        [false, false, false, false, false]
+    ],
+    [
+        [true, false, false, false, true],
+        [false, false, false, false, false],
+        [false, false, true, false, false],
+        [false, false, false, false, false],
+        [true, false, false, false, true]
+    ],
+    [
+        [true, true, false, false, false],
+        [true, true, false, false, false],
+        [false, false, false, false, false],
+        [false, false, false, true, true],
+        [false, false, false, true, true]
+    ],
+    [
+        [true, false, false, false, true],
+        [false, false, true, false, false],
+        [false, true, false, true, false],
+        [false, false, true, false, false],
+        [true, false, false, false, true]
+    ],
+    [
+        [false, false, false, false, false],
+        [false, true, true, true, false],
+        [false, true, true, true, false],
+        [false, true, true, true, false],
+        [false, false, false, false, false]
+    ],
+    [
+        [true, false, true, false, true],
+        [false, true, false, true, false],
+        [true, false, false, false, true],
+        [false, true, false, true, false],
+        [true, false, true, false, true]
+    ],
+    [
+        [false, false, true, false, false],
+        [false, false, true, false, false],
+        [true, true, true, true, true],
+        [false, false, true, false, false],
+        [false, false, true, false, false]
+    ],
+    [
+        [true, true, false, true, true],
+        [false, true, true, false, false],
+        [true, false, false, true, true],
+        [false, false, true, false, false],
+        [true, true, true, false, true]
+    ],
+];
+
 function preload() {
+
     devil_images.push(loadImage('./static/frame0.png'));
     devil_images.push(loadImage('./static/frame1.png'));
     bottom_bar = loadImage('./static/bottom_bar.png');
     lit_light = loadImage('./static/lit_light.png');
     unlit_light = loadImage('./static/unlit_light.png');
     midlit_light = loadImage('./static/midlit_light.png');
+
+    if(!sessionStorage.getItem("records"))
+        sessionStorage.setItem("records", '[]');
+    records = JSON.parse(sessionStorage.getItem("records")) ?? [];
 }
 
 let lights;
@@ -42,12 +111,13 @@ let solving = false;
 let fin = false;
 
 function setup() {
-
-    createCanvas(CANVAS_WIDTH, CANVAS_HEIGHT);
+    let cnv = createCanvas(CANVAS_WIDTH, CANVAS_HEIGHT);
+    cnv.parent('canvas-container');
     noSmooth();
     frameRate(15);
     blink_at = floor(randomGaussian(blink_frequency_mean, 10));
     lights = new Lights(0);
+    updateTable();
 
 }
 
@@ -61,41 +131,20 @@ class Lights {
         this.x = x;
         this.y = y;
 
-        this.levels = [
-            [
-                [false, false, false, false, false],
-                [false, false, false, false, false],
-                [false, false, true, false, false],
-                [false, false, false, false, false],
-                [false, false, false, false, false]
-            ],
-            [
-                [true, false, false, false, true],
-                [false, false, false, false, false],
-                [false, false, true, false, false],
-                [false, false, false, false, false],
-                [true, false, false, false, true]
-            ],
-            [
-                [true, false, true, false, true],
-                [false, true, false, true, false],
-                [true, false, false, false, true],
-                [false, true, false, true, false],
-                [true, false, true, false, true]
-            ],
-        ];
-
         this.loadLevel(level);
     }
 
     loadLevel(level) {
         // console.log("loaded level " + level);
+        // console.log(game_levels[0])
         fin = false;
         clicks_allowed = true;
+        $('#submit-form').slideUp(1000);
+        this.current_level = level;
+        updateTable();
         start_millis = millis();
         moves_made = 0;
-        this.current_level = level;
-        this.presses_needed = this.levels[level];
+        this.presses_needed = JSON.parse(JSON.stringify(game_levels[level]));
         this.lights = [];
         this.glow = [];
         this.glowing = false;
@@ -116,7 +165,7 @@ class Lights {
     }
 
     nextLevel() {
-        this.loadLevel(this.current_level + 1 <= this.levels.length - 1 ? this.current_level + 1 : this.current_level);
+        this.loadLevel(this.current_level + 1 <= game_levels.length - 1 ? this.current_level + 1 : this.current_level);
     }
 
     prevLevel() {
@@ -124,7 +173,7 @@ class Lights {
     }
 
     randomLevel() {
-        this.loadLevel(floor(map(random(), 0, 1, 0, this.levels.length)));
+        this.loadLevel(floor(map(random(), 0, 1, 0, game_levels.length)));
     }
 
     at(x, y) {
@@ -162,7 +211,7 @@ class Lights {
         this.glow[x_arr[r]][y_arr[r]] = true;
     }
 
-    resetGlow(){
+    resetGlow() {
         this.glow = [];
         for (let i = 0; i < this.x; i++) {
             this.glow.push([]);
@@ -190,8 +239,8 @@ class Lights {
         if (this.glowing && frameCount % frames == frames / 2) {
             for (let i = 0; i < this.x; i++) {
                 for (let j = 0; j < this.y; j++) {
-                    if (this.presses_needed[i][j]){
-                        lights.press(i,j);
+                    if (this.presses_needed[i][j]) {
+                        lights.press(i, j);
                         return;
                     }
                 }
@@ -204,20 +253,30 @@ class Lights {
     checkForWin() {
         for (let i = 0; i < this.x; i++) {
             for (let j = 0; j < this.y; j++) {
-                if (this.at(i,j)) return; 
+                if (this.at(i, j)) return;
             }
         }
         fin = true;
-        // TODO save score + dialog with "YOU WIN! <stats>"
-        console.log("CONGRATULATIONS! YOU WON STAGE " + this.current_level + "! It took you " + time_elapsed + ", and you did it in " + moves_made + " moves." ); 
+        console.log("CONGRATULATIONS! YOU WON STAGE " + this.current_level + "! It took you " + time_elapsed + ", and you did it in " + moves_made + " moves.");
+
+        openDialog();
     }
 
+}
+
+function openDialog() {
+    // https://stackoverflow.com/questions/18754050/scrollto-function-jquery-is-not-working
+    $("#submit-form").slideDown(1000);
+    $('html, body').animate({
+        scrollTop: $("#submit-form").offset().top - 10
+    }, 2000);
+    $("#stats").html(`Your time: ${millis_to_m_s(millis_elapsed, true)} </br> Moves taken: ${moves_made}`);
+    
 }
 
 function shake(frames) {
     shake_frames = frames;
 }
-
 
 function prop(a) {
     return (a / 720) * CANVAS_WIDTH;
@@ -345,11 +404,10 @@ function drawBase() {
 
         textSize(19);
         fill("#eeb");
-        if (!fin){
-            minutes_elapsed = floor((millis() - start_millis) / 60000);
-            seconds_elapsed = floor(((millis() - start_millis) / 1000) % 60);
+        if (!fin) {
+            millis_elapsed = millis() - start_millis;
+            time_elapsed = millis_to_m_s(millis() - start_millis);
         }
-        time_elapsed = `${minutes_elapsed}:${(seconds_elapsed <= 9 ? "0" : "") + seconds_elapsed}`;
         text(time_elapsed, width * 0.16, height * 0.39, width * 0.15, height * 0.06);
         text(moves_made, width * 0.16, height * 0.43, width * 0.15, height * 0.06);
 
@@ -382,6 +440,14 @@ function drawBase() {
         noStroke();
         fill("#570f54");
         ellipse(width * 0.173, height * 0.807, width * 0.27, height * 0.11);
+        if (fin) {
+            colorMode(HSB, 100);
+            tint(color(frameCount % 100, 100, 100))
+        }
+
+        if (shake_frames != 0) {
+            tint(shake_frames % 2 ? "red" : "purple")
+        }
 
         if (blink_frames) {
             image(devil_images[1], width * 0.05, height * 0.4, width * 0.24, height * 0.45);
@@ -421,7 +487,6 @@ function drawBase() {
     // bottom bar
     // TODO animate?
     image(bottom_bar, width * 0.05, height * 0.89, width * 0.88, height * 0.1);
-
     (function drawLights() {
         push();
         rectMode(CENTER);
@@ -527,6 +592,7 @@ function drawBase() {
 }
 
 function mouseClicked(e) {
+
     // console.log("X: " + mouseX + " - Y: " + mouseY);
 
     if (!clicks_allowed) {
@@ -559,12 +625,16 @@ function mouseClicked(e) {
     }
     if (dist(prop(225), prop(78), mouseX, mouseY) < prop(15)) {
         // console.log("▶️▶️");
-        lights.loadLevel(lights.levels.length - 1);
+        lights.loadLevel(game_levels.length - 1);
         return;
     }
     // SOLVE
-    if (!fin && prop(135) < mouseX && mouseX < prop(244)) {
+    if (prop(135) < mouseX && mouseX < prop(244)) {
         if (prop(116) < mouseY && mouseY < prop(144)) {
+            if (fin) {
+                shake(3);
+                return;
+            }
             // TODO confirmation box 
             lights.resetGlow();
             moves_made = 999999;
@@ -591,14 +661,17 @@ function mouseClicked(e) {
         }
     }
     // HELP
-    if (!fin && prop(135) < mouseX && mouseX < prop(244)) {
+    if (prop(135) < mouseX && mouseX < prop(244)) {
         if (prop(217) < mouseY && mouseY < prop(248)) {
+            if (fin) {
+                shake(3);
+                return;
+            }
             // console.log("HELP clicked");
             lights.help();
             return;
         }
     }
-
     // lights clicked?
     let x = width * 0.35;
     let y = height * 0.075;
@@ -609,13 +682,84 @@ function mouseClicked(e) {
         for (let j = 0; j < 5; ++j) {
             let tx = x + i * width * .55 / 6;
             let ty = y + j * height * .73 / 6;
-            if (!fin && dist(tx, ty, mouseX, mouseY) < prop(20)) {
+            if (dist(tx, ty, mouseX, mouseY) < prop(20)) {
+                if (fin) {
+                    shake(3);
+                    return;
+                }
                 moves_made++;
                 lights.press(i, j);
+
                 return;
             }
             // console.log("pushed: " + i + " - " + j);
         }
     }
 
+}
+
+function updateTable() {
+
+    records.sort((a, b) => {
+        if (sortByTime)
+            return (a['time'] > b['time']) || (a['time'] == b['time'] && a['moves'] > b['moves']);
+        else return (a['moves'] > b['moves']) || (a['time'] > b['time'] && a['moves'] == b['moves']);
+    });
+
+    $('#scores-contain h1').html(`LEADERBOARD - LEVEL ${lights?.current_level ?? 0} - ${sortByTime ? "TIME" : "MOVES"}`)
+    $('#scores').empty()
+    $('#scores').append(`
+    <thead>
+    <tr class="ui-widget-header ">
+      <th>Name</th>
+      <th>Time</th>
+      <th>Moves</th>
+    </tr>
+  </thead>
+  <tbody>
+  </tbody>
+    `);
+
+    for (record of records) {
+        if (record['level'] == lights?.current_level ?? 0) {
+            $('#scores tbody').append(`
+            <tr>
+                <td>${record['name']}</td>
+                <td>${millis_to_m_s(record['time'], true)}</td>
+                <td>${record['moves']}</td>
+            </tr>
+            `);
+        }
+    }
+}
+
+function submitScore() {
+    if ($('#name').val().length === 0) return;
+    $('#submit-form').slideUp(1000);
+    // console.log({ 'level': lights.current_level, 'time': time_elapsed, 'moves': moves_made, 'name': $("#name").val() });
+    records.push({ 'level': lights.current_level, 'time': m_s_to_millis(time_elapsed), 'moves': moves_made, 'name': $("#name").val() });
+    sessionStorage.setItem('records', JSON.stringify(records));
+    // console.log(sessionStorage.getItem('records'));
+    updateTable();
+}
+
+function m_s_to_millis(m_s) {
+    let m = m_s.split(':')[0];
+    let s = m_s.split(':')[1];
+    return s * 1000 + m * 60_000 + (millis_elapsed % 1000);
+}
+
+function millis_to_m_s(millis, show_millis = false) {
+    let = minutes_elapsed = floor(millis / 60000);
+    let = seconds_elapsed = floor((millis / 1000) % 60);
+    return `${minutes_elapsed}:${(seconds_elapsed <= 9 ? "0" : "") + seconds_elapsed}` + (show_millis ? "." + (millis % 1000) : "");
+}
+
+function changeSort() {
+    sortByTime = !sortByTime;
+    $("#scores-contain").slideUp("1500", "linear", () => {
+        $("#change-sort").html("Sort by Moves");
+        updateTable();
+        $("#scores-contain").slideDown("1500", "linear");
+    });
 }

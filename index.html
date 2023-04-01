@@ -1,23 +1,124 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>All-Out</title>
-    <script src="lib/p5.js"></script>
-    <!-- <script src="lib/p5.sound.js"></script> -->
-    <script src="./all-out.js" lang="js"></script>
-    <style>
-      body {
-        text-align: center;
-        size: 100vw 100vh;
-      }  
-      canvas {
-        margin: 100px auto; 
-      }
-    </style>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>All-Out</title>
+  <script src="lib/p5.js"></script>
+  <script src="lib/jquery-3.3.1.min.js"></script>
+  <script src="lib/jquery-ui.min.js"></script>
+  <!-- <script src="lib/p5.sound.js"></script> -->
+  <script src="./all-out.js" lang="js"></script>
+  <style>
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      text-align: center;
+      size: 100vw 100vh;
+      background-color: #002f66;
+    }
+
+    canvas {
+      margin: 50px auto;
+    }
+
+    label,
+    input,
+    button {
+      display: block;
+      margin: 12px auto;
+    }
+
+    input.text {
+      width: 300px;
+      padding: .4em;
+    }
+
+    fieldset {
+      padding: 10px;
+      border: 0;
+    }
+
+    h1 {
+      font-size: 1.2em;
+      margin: .6em 0;
+    }
+
+    div#scores-contain {
+      width: 600px;
+      margin: 20px 0;
+      color: #ffb82e;
+    }
+
+    div#scores-contain table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    div#scores-contain table td,
+    div#scores-contain table th {
+      border: 1px solid #5187c1;
+      padding: .6em 10px;
+      text-align: left;
+    }
+
+    div#submit-form {
+      margin: 10px auto;
+      width: 400px;
+      background-color: #c86cc4;
+      border-radius: 20px;
+      border: solid 1px#d689d2
+    }
+
+    button {
+      background-color: #ffb82e;
+    }
+
+    label, h1  {
+      -webkit-text-stroke-width: 0.5px;
+      -webkit-text-stroke-color: black;
+      font-size: 1.5em;
+      font-weight: bold;
+      color: #ffb82e;
+    }
+
+    #stats {
+      color: black;
+      font-size: 1.2em;
+    }
+  </style>
 </head>
+
 <body>
+  <div id="canvas-container"></div>
+  <div id="submit-form" title="Submit Score" style="display: none">
+    <form onkeydown="return event.key != 'Enter';">
+      <h1> CONGRATS! YOU WIN!</h1>
+      <span id="stats"></span>
+      <fieldset>
+        <label for="name" required>NAME</label>
+        <input type="text" name="name" id="name" autocomplete="off">
+        <button id="submit-score-btn" type="button" onclick="submitScore()" tabindex="1"> Submit Score </button>
+      </fieldset>
+    </form>
+  </div>
+  <div id="scores-contain" class="ui-widget" style="margin: 20px auto;">
+    <h1>LEADERBOARD</h1>
+    <table id="scores">
+      <thead>
+        <tr class="ui-widget-header ">
+          <th>Name</th>
+          <th>Moves</th>
+          <th>Time</th>
+          <th>Level</th>
+        </tr>
+      </thead>
+    </table>
+    <button type="button" id="change-sort" onclick="changeSort()">Sort By Time</button>
+  </div>
+<div id="end"></div>
 </body>
+
 </html>
