@@ -1,9 +1,12 @@
+// TODO optimize draw a little, don't need to redraw everything every frame 
+// TODO win condition checks
+
 // CONSTANTS:
 const CANVAS_WIDTH = 720;
 const CANVAS_HEIGHT = CANVAS_WIDTH * (480 / 720);
 
 const blink_frequency_mean = 80;
-const blink_length = [2, 6];
+const blink_length = [1, 4];
 
 let devil_images = [];
 let blink_frames = 0;
@@ -19,11 +22,6 @@ let minutes_elapsed;
 let time_elapsed;
 let moves_made = 0;
 
-
-function prop(a) {
-    return (a / 720) * CANVAS_WIDTH;
-}
-
 let font_bold;
 let font_italic;
 let font_regular;
@@ -38,13 +36,18 @@ function preload() {
 }
 
 let lights;
+let clicks_allowed = true;
+let shake_frames = 0;
+let solving = false;
+let fin = false;
 
 function setup() {
 
     createCanvas(CANVAS_WIDTH, CANVAS_HEIGHT);
-    frameRate(30);
+    noSmooth();
+    frameRate(15);
     blink_at = floor(randomGaussian(blink_frequency_mean, 10));
-    lights = new Lights(2);
+    lights = new Lights(0);
 
 }
 
@@ -53,56 +56,75 @@ function draw() {
 }
 
 class Lights {
+
     constructor(level = 1, x = 5, y = 5) {
         this.x = x;
         this.y = y;
 
+        this.levels = [
+            [
+                [false, false, false, false, false],
+                [false, false, false, false, false],
+                [false, false, true, false, false],
+                [false, false, false, false, false],
+                [false, false, false, false, false]
+            ],
+            [
+                [true, false, false, false, true],
+                [false, false, false, false, false],
+                [false, false, true, false, false],
+                [false, false, false, false, false],
+                [true, false, false, false, true]
+            ],
+            [
+                [true, false, true, false, true],
+                [false, true, false, true, false],
+                [true, false, false, false, true],
+                [false, true, false, true, false],
+                [true, false, true, false, true]
+            ],
+        ];
+
+        this.loadLevel(level);
+    }
+
+    loadLevel(level) {
+        // console.log("loaded level " + level);
+        fin = false;
+        clicks_allowed = true;
+        start_millis = millis();
+        moves_made = 0;
+        this.current_level = level;
+        this.presses_needed = this.levels[level];
         this.lights = [];
-        for (let i = 0; i < x; i++) {
+        this.glow = [];
+        this.glowing = false;
+        for (let i = 0; i < this.x; i++) {
             this.lights.push([]);
-            for (let j = 0; j < y; j++) {
+            this.glow.push([]);
+            for (let j = 0; j < this.y; j++) {
+                this.glow[i].push(false);
                 this.lights[i].push(false);
             }
         }
-
-        switch (level) {
-            case 0:
-                this.presses_needed = [
-                    [false, false, false, false, false],
-                    [false, false, false, false, false],
-                    [false, false, false, false, false],
-                    [false, false, false, false, false],
-                    [false, false, false, false, false]
-                ];
-                break;
-            case 1:
-                this.presses_needed = [
-                    [true, false, false, false, true],
-                    [false, false, false, false, false],
-                    [false, false, true, false, false],
-                    [false, false, false, false, false],
-                    [true, false, false, false, true]
-                ];
-
-                break;
-            case 2:
-                this.presses_needed = [
-                    [true, false, true, false, true],
-                    [false, true, false, true, false],
-                    [true, false, false, false, true],
-                    [false, true, false, true, false],
-                    [true, false, true, false, true]
-                ];
-
-                break;
-        }
-
-        for (let i = 0; i < x; i++) {
-            for (let j = 0; j < y; j++) {
+        for (let i = 0; i < this.x; i++) {
+            for (let j = 0; j < this.y; j++) {
                 if (this.presses_needed[i][j])
                     this.press(i, j, true);
             }
         }
+    }
+
+    nextLevel() {
+        this.loadLevel(this.current_level + 1 <= this.levels.length - 1 ? this.current_level + 1 : this.current_level);
+    }
+
+    prevLevel() {
+        this.loadLevel(this.current_level - 1 >= 0 ? this.current_level - 1 : 0);
+    }
+
+    randomLevel() {
+        this.loadLevel(floor(map(random(), 0, 1, 0, this.levels.length)));
     }
 
     at(x, y) {
@@ -110,8 +132,9 @@ class Lights {
     }
 
     press(x, y, setup = false) {
+        if (this.glow[x][y]) this.glow[x][y] = false;
 
-        if (!setup) this.presses_needed[x][y] == !this.presses_needed[x][y];
+        if (!setup) this.presses_needed[x][y] = !this.presses_needed[x][y];
 
         if (x >= 0 && x < this.x && y >= 0 && y < this.y) this.lights[x][y] = !this.lights[x][y];
         if (x + 1 >= 0 && x + 1 < this.x && y >= 0 && y < this.y) this.lights[x + 1][y] = !this.lights[x + 1][y];
@@ -119,12 +142,99 @@ class Lights {
         if (x >= 0 && x < this.x && y + 1 >= 0 && y + 1 < this.y) this.lights[x][y + 1] = !this.lights[x][y + 1];
         if (x >= 0 && x < this.x && y - 1 >= 0 && y - 1 < this.y) this.lights[x][y - 1] = !this.lights[x][y - 1];
 
+        this.checkForWin();
     }
 
+    help() {
+        moves_made += 3;
+        let x_arr = [];
+        let y_arr = [];
+        for (let i = 0; i < this.x; i++) {
+            for (let j = 0; j < this.y; j++) {
+                if (this.presses_needed[i][j]) {
+                    x_arr.push(i);
+                    y_arr.push(j);
+                }
+            }
+        }
+        if (x_arr.length == 0) return;
+        let r = floor(map(random(), 0, 1, 0, x_arr.length));
+        this.glow[x_arr[r]][y_arr[r]] = true;
+    }
+
+    resetGlow(){
+        this.glow = [];
+        for (let i = 0; i < this.x; i++) {
+            this.glow.push([]);
+            for (let j = 0; j < this.y; j++) {
+                this.glow[i].push(false);
+            }
+        }
+    }
+
+    solve(frames) {
+        if (frameCount % frames == 1) {
+            for (let i = 0; i < this.x; i++) {
+                for (let j = 0; j < this.y; j++) {
+                    if (this.presses_needed[i][j]) {
+                        this.glow[i][j] = true;
+                        this.glowing = true;
+                        return;
+                    }
+                }
+            }
+            solving = false;
+            clicks_allowed = true;
+            return;
+        }
+        if (this.glowing && frameCount % frames == frames / 2) {
+            for (let i = 0; i < this.x; i++) {
+                for (let j = 0; j < this.y; j++) {
+                    if (this.presses_needed[i][j]){
+                        lights.press(i,j);
+                        return;
+                    }
+                }
+            }
+            // solving = false
+            // return;
+        }
+    }
+
+    checkForWin() {
+        for (let i = 0; i < this.x; i++) {
+            for (let j = 0; j < this.y; j++) {
+                if (this.at(i,j)) return; 
+            }
+        }
+        fin = true;
+        // TODO save score + dialog with "YOU WIN! <stats>"
+        console.log("CONGRATULATIONS! YOU WON STAGE " + this.current_level + "! It took you " + time_elapsed + ", and you did it in " + moves_made + " moves." ); 
+    }
 
 }
 
+function shake(frames) {
+    shake_frames = frames;
+}
+
+
+function prop(a) {
+    return (a / 720) * CANVAS_WIDTH;
+}
+
 function drawBase() {
+
+    if (solving) {
+        lights.solve(30);
+    }
+
+    if (shake_frames !== 0) {
+        translate(width / 2, height / 2);
+        rotate(map(random(), 0, 1, -0.04, 0.04));
+        translate(-width / 2, -height / 2);
+        shake_frames--;
+    }
 
     (function drawBackground() {
 
@@ -202,6 +312,15 @@ function drawBase() {
         rect(width * 0.0925, height * 0.01, width * 0.06, height * 0.06, 10);
 
         // TODO: numbers with funky font
+        push()
+        textStyle(BOLD);
+        strokeWeight(2);
+        stroke("#C4C");
+        fill("#A3A");
+        textFont('luminari')
+        textSize(prop(28));
+        text(lights.current_level, prop(81), prop(28))
+        pop()
 
         textStyle(BOLD);
         textSize(16);
@@ -216,9 +335,9 @@ function drawBase() {
         fill("#ffb82e");
         stroke("#5259");
         text("SOLVE", width * 0.118, height * 0.125, width * 0.15, height * 0.06);
-        text("RESET", width * 0.118, height * 0.195, width * 0.15, height * 0.06, 10);
-        text("RANDOM", width * 0.105, height * 0.265, width * 0.15, height * 0.06, 10);
-        text("HELP", width * 0.124, height * 0.335, width * 0.15, height * 0.06, 10);
+        text("RESET", width * 0.118, height * 0.195, width * 0.15, height * 0.06);
+        text("RANDOM", width * 0.105, height * 0.265, width * 0.15, height * 0.06);
+        text("HELP", width * 0.124, height * 0.335, width * 0.15, height * 0.06);
 
         textSize(17);
         text("time:", width * 0.0925, height * 0.39, width * 0.15, height * 0.06);
@@ -226,9 +345,11 @@ function drawBase() {
 
         textSize(19);
         fill("#eeb");
-        minutes_elapsed = floor((millis() - start_millis) / 60000);
-        seconds_elapsed = floor(((millis() - start_millis) / 1000) % 60);
-        time_elapsed = `${minutes_elapsed}:${(seconds_elapsed <= 9 ? "0" : "") + seconds_elapsed} `;
+        if (!fin){
+            minutes_elapsed = floor((millis() - start_millis) / 60000);
+            seconds_elapsed = floor(((millis() - start_millis) / 1000) % 60);
+        }
+        time_elapsed = `${minutes_elapsed}:${(seconds_elapsed <= 9 ? "0" : "") + seconds_elapsed}`;
         text(time_elapsed, width * 0.16, height * 0.39, width * 0.15, height * 0.06);
         text(moves_made, width * 0.16, height * 0.43, width * 0.15, height * 0.06);
 
@@ -253,7 +374,6 @@ function drawBase() {
         pop();
     })();
 
-
     (function drawDevil() {
         push();
         stroke("#570f54");
@@ -275,7 +395,6 @@ function drawBase() {
 
         pop();
     })();
-
 
     (function drawTopBar() {
         push();
@@ -300,6 +419,7 @@ function drawBase() {
     })();
 
     // bottom bar
+    // TODO animate?
     image(bottom_bar, width * 0.05, height * 0.89, width * 0.88, height * 0.1);
 
     (function drawLights() {
@@ -374,7 +494,6 @@ function drawBase() {
                     hovered = true;
                     for (let i = 0; i < 10; i++) {
                         circle(0, 0, prop(40 + i * 3));
-
                     }
                 }
 
@@ -382,11 +501,21 @@ function drawBase() {
                 if (hovered)
                     image(midlit_light, -rad / 2, -rad / 2, rad, rad);
 
-                else if (!lights.at(i, j))
+                else if (lights.at(i, j))
                     image(lit_light, -rad / 2, -rad / 2, rad, rad);
 
                 else
                     image(unlit_light, -rad / 2, -rad / 2, rad, rad);
+
+                if (lights.glow[i][j]) {
+                    push();
+                    fill("#F3D1");
+                    noStroke();
+                    for (let i = 0; i < 10; i++) {
+                        circle(0, 0, prop(40 + i * 3));
+                    }
+                    pop();
+                }
 
                 pop();
                 pop();
@@ -398,8 +527,13 @@ function drawBase() {
 }
 
 function mouseClicked(e) {
-    console.log("X: " + mouseX + " - Y: " + mouseY);
-    
+    // console.log("X: " + mouseX + " - Y: " + mouseY);
+
+    if (!clicks_allowed) {
+        shake(4);
+        return;
+    }
+
     // LEGAL
     if (prop(541) < mouseX && mouseX < prop(668)) {
         if (prop(5) < mouseY && mouseY < prop(17)) {
@@ -407,52 +541,63 @@ function mouseClicked(e) {
             return;
         }
     }
+    // ARROW BUTTONS
     if (dist(prop(120), prop(78), mouseX, mouseY) < prop(15)) {
-        console.log("◀️");
+        // console.log("◀️");
+        lights.prevLevel();
         return;
     }
     if (dist(prop(195), prop(78), mouseX, mouseY) < prop(15)) {
-        console.log("▶️");
+        // console.log("▶️");
+        lights.nextLevel();
         return;
     }
     if (dist(prop(90), prop(78), mouseX, mouseY) < prop(15)) {
-        console.log("◀️◀️");
+        // console.log("◀️◀️");
+        lights.loadLevel(0);
         return;
     }
     if (dist(prop(225), prop(78), mouseX, mouseY) < prop(15)) {
-        console.log("▶️▶️");
+        // console.log("▶️▶️");
+        lights.loadLevel(lights.levels.length - 1);
         return;
     }
     // SOLVE
-    if (prop(135) < mouseX && mouseX < prop(244)) {
+    if (!fin && prop(135) < mouseX && mouseX < prop(244)) {
         if (prop(116) < mouseY && mouseY < prop(144)) {
-            console.log("SOLVE clicked");
+            // TODO confirmation box 
+            lights.resetGlow();
+            moves_made = 999999;
+            start_millis -= 3_600_000;
+            solving = true;
+            clicks_allowed = false;
             return;
         }
     }
     // RESET
     if (prop(135) < mouseX && mouseX < prop(244)) {
         if (prop(150) < mouseY && mouseY < prop(179)) {
-            console.log("RESET clicked");
+            // console.log("RESET clicked");
+            lights.loadLevel(lights.current_level);
             return;
         }
     }
     // RANDOM
     if (prop(135) < mouseX && mouseX < prop(244)) {
         if (prop(183) < mouseY && mouseY < prop(211)) {
-            console.log("RANDOM clicked");
+            // console.log("RANDOM clicked");
+            lights.randomLevel();
             return;
         }
     }
     // HELP
-    if (prop(135) < mouseX && mouseX < prop(244)) {
+    if (!fin && prop(135) < mouseX && mouseX < prop(244)) {
         if (prop(217) < mouseY && mouseY < prop(248)) {
-            console.log("HELP clicked");
+            // console.log("HELP clicked");
+            lights.help();
             return;
         }
     }
-
-
 
     // lights clicked?
     let x = width * 0.35;
@@ -464,14 +609,13 @@ function mouseClicked(e) {
         for (let j = 0; j < 5; ++j) {
             let tx = x + i * width * .55 / 6;
             let ty = y + j * height * .73 / 6;
-            if (dist(tx, ty, mouseX, mouseY) < prop(20)) {
-                lights.press(i, j);
+            if (!fin && dist(tx, ty, mouseX, mouseY) < prop(20)) {
                 moves_made++;
+                lights.press(i, j);
                 return;
             }
             // console.log("pushed: " + i + " - " + j);
         }
     }
-
 
 }
