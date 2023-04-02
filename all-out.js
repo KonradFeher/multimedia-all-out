@@ -1,5 +1,6 @@
-// TODO optimize draw a little --- idk it runs smooth now
-// TODO SOUND
+// Neptun: C649Q1
+// The website needs to be hosted on localhost, to combat CORS.
+// It is also deployed on: https://all-out-c649q1.000webhostapp.com
 
 // CONSTANTS:
 const CANVAS_WIDTH = 720;
@@ -160,6 +161,7 @@ function setup() {
     updateTable();
     volumeSlider = createSlider(0, 0.5, 0.25, 0);
     volumeSlider.parent("sound");
+    $("#loading").hide();
 }
 
 function draw() {
@@ -814,7 +816,7 @@ function m_s_to_millis(m_s) {
 function millis_to_m_s(millis, show_millis = false) {
     let = minutes_elapsed = floor(millis / 60000);
     let = seconds_elapsed = floor((millis / 1000) % 60);
-    return `${minutes_elapsed}:${(seconds_elapsed <= 9 ? "0" : "") + seconds_elapsed}` + (show_millis ? "." + (millis % 1000) : "");
+    return `${minutes_elapsed}:${(seconds_elapsed <= 9 ? "0" : "") + seconds_elapsed}` + (show_millis ? "." + floor(millis % 1000) : "");
 }
 
 function changeSort() {
