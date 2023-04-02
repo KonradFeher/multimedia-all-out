@@ -8,6 +8,8 @@ const CANVAS_HEIGHT = CANVAS_WIDTH * (480 / 720);
 const blink_frequency_mean = 80;
 const blink_length = [1, 4];
 
+const WIPE_SCORES = false;
+
 let sortByTime = false;
 
 let devil_images = [];
@@ -17,6 +19,7 @@ let bottom_bar;
 let lit_light;
 let unlit_light;
 let midlit_light;
+let soundOn = true;
 
 let start_millis = 0;
 let seconds_elapsed;
@@ -29,6 +32,18 @@ let font_italic;
 let font_regular;
 
 let records;
+
+let currentVolume;
+let volumeSlider;
+let thudSound;
+let waterdropSound;
+let hintSound;
+let switchSound;
+let evilLaughSound;
+let victorySound;
+let backgroundMusic;
+
+let audio = false;
 
 
 const game_levels = [
@@ -52,6 +67,20 @@ const game_levels = [
         [false, false, false, false, false],
         [false, false, false, true, true],
         [false, false, false, true, true]
+    ],
+    [
+        [true, false, false, false, false],
+        [false, true, false, false, false],
+        [false, false, true, false, false],
+        [false, false, false, true, false],
+        [false, false, false, false, true]
+    ],
+    [
+        [false, true, false, true, false],
+        [false, true, false, true, false],
+        [false, true, false, true, false],
+        [false, true, false, true, false],
+        [false, true, false, true, false]
     ],
     [
         [true, false, false, false, true],
@@ -92,14 +121,24 @@ const game_levels = [
 
 function preload() {
 
+    if (WIPE_SCORES) sessionStorage.setItem("records", '[]');
+
     devil_images.push(loadImage('./static/frame0.png'));
     devil_images.push(loadImage('./static/frame1.png'));
     bottom_bar = loadImage('./static/bottom_bar.png');
     lit_light = loadImage('./static/lit_light.png');
     unlit_light = loadImage('./static/unlit_light.png');
-    midlit_light = loadImage('./static/midlit_light.png');
 
-    if(!sessionStorage.getItem("records"))
+    thudSound = loadSound('./static/thud.wav');
+    waterdropSound = loadSound('./static/waterdrop.wav');
+    hintSound = loadSound('./static/hint.wav');
+    switchSound = loadSound('./static/switch.wav');
+    victorySound = loadSound('./static/victory.wav');
+    evilLaughSound = loadSound('./static/evillaugh.wav');
+    backgroundMusic = loadSound('./static/Space-Jazz.mp3');
+    setAllVolumes(0.5);
+
+    if (!sessionStorage.getItem("records"))
         sessionStorage.setItem("records", '[]');
     records = JSON.parse(sessionStorage.getItem("records")) ?? [];
 }
@@ -109,6 +148,7 @@ let clicks_allowed = true;
 let shake_frames = 0;
 let solving = false;
 let fin = false;
+let fin_moves_made;
 
 function setup() {
     let cnv = createCanvas(CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -118,10 +158,12 @@ function setup() {
     blink_at = floor(randomGaussian(blink_frequency_mean, 10));
     lights = new Lights(0);
     updateTable();
-
+    volumeSlider = createSlider(0, 0.5, 0.25, 0);
+    volumeSlider.parent("sound");
 }
 
 function draw() {
+    setAllVolumes(volumeSlider.value());
     drawBase();
 }
 
@@ -162,6 +204,7 @@ class Lights {
                     this.press(i, j, true);
             }
         }
+        waterdropSound.play();
     }
 
     nextLevel() {
@@ -183,8 +226,10 @@ class Lights {
     press(x, y, setup = false) {
         if (this.glow[x][y]) this.glow[x][y] = false;
 
-        if (!setup) this.presses_needed[x][y] = !this.presses_needed[x][y];
-
+        if (!setup) {
+            this.presses_needed[x][y] = !this.presses_needed[x][y];
+            switchSound.play();
+        }
         if (x >= 0 && x < this.x && y >= 0 && y < this.y) this.lights[x][y] = !this.lights[x][y];
         if (x + 1 >= 0 && x + 1 < this.x && y >= 0 && y < this.y) this.lights[x + 1][y] = !this.lights[x + 1][y];
         if (x - 1 >= 0 && x - 1 < this.x && y >= 0 && y < this.y) this.lights[x - 1][y] = !this.lights[x - 1][y];
@@ -228,6 +273,7 @@ class Lights {
                     if (this.presses_needed[i][j]) {
                         this.glow[i][j] = true;
                         this.glowing = true;
+                        hintSound.play();
                         return;
                     }
                 }
@@ -257,8 +303,10 @@ class Lights {
             }
         }
         fin = true;
+        fin_moves_made = moves_made;
         console.log("CONGRATULATIONS! YOU WON STAGE " + this.current_level + "! It took you " + time_elapsed + ", and you did it in " + moves_made + " moves.");
 
+        victorySound.play();
         openDialog();
     }
 
@@ -271,11 +319,12 @@ function openDialog() {
         scrollTop: $("#submit-form").offset().top - 10
     }, 2000);
     $("#stats").html(`Your time: ${millis_to_m_s(millis_elapsed, true)} </br> Moves taken: ${moves_made}`);
-    
+
 }
 
 function shake(frames) {
     shake_frames = frames;
+    thudSound.play();
 }
 
 function prop(a) {
@@ -445,9 +494,14 @@ function drawBase() {
             tint(color(frameCount % 100, 100, 100))
         }
 
-        if (shake_frames != 0) {
-            tint(shake_frames % 2 ? "red" : "purple")
+        if (shake_frames != 0 || solving) {
+            tint(frameCount % 2 ? "red" : "purple")
         }
+        if (solving) {
+            rotate(map(random(), 0, 1, 0.01, 0.01))
+            translate(0, map(random(), 0, 1, -height*0.006, +height*0.006));
+        }
+
 
         if (blink_frames) {
             image(devil_images[1], width * 0.05, height * 0.4, width * 0.24, height * 0.45);
@@ -563,10 +617,11 @@ function drawBase() {
                 }
 
                 pop();
-                if (hovered)
-                    image(midlit_light, -rad / 2, -rad / 2, rad, rad);
+                if (hovered) {
+                    tint("#EE39");
+                }
 
-                else if (lights.at(i, j))
+                if (lights.at(i, j))
                     image(lit_light, -rad / 2, -rad / 2, rad, rad);
 
                 else
@@ -593,6 +648,10 @@ function drawBase() {
 
 function mouseClicked(e) {
 
+    if (!audio) {
+        audio = true;
+        backgroundMusic.loop();
+    }
     // console.log("X: " + mouseX + " - Y: " + mouseY);
 
     if (!clicks_allowed) {
@@ -636,9 +695,10 @@ function mouseClicked(e) {
                 return;
             }
             // TODO confirmation box 
+            evilLaughSound.play();
             lights.resetGlow();
             moves_made = 999999;
-            start_millis -= 3_600_000;
+            start_millis -= 3_600_000 * 5 / 3;
             solving = true;
             clicks_allowed = false;
             return;
@@ -669,6 +729,7 @@ function mouseClicked(e) {
             }
             // console.log("HELP clicked");
             lights.help();
+            hintSound.play();
             return;
         }
     }
@@ -737,10 +798,11 @@ function submitScore() {
     if ($('#name').val().length === 0) return;
     $('#submit-form').slideUp(1000);
     // console.log({ 'level': lights.current_level, 'time': time_elapsed, 'moves': moves_made, 'name': $("#name").val() });
-    records.push({ 'level': lights.current_level, 'time': m_s_to_millis(time_elapsed), 'moves': moves_made, 'name': $("#name").val() });
+    records.push({ 'level': lights.current_level, 'time': m_s_to_millis(time_elapsed), 'moves': fin_moves_made, 'name': $("#name").val() });
     sessionStorage.setItem('records', JSON.stringify(records));
     // console.log(sessionStorage.getItem('records'));
     updateTable();
+    waterdropSound.play();
 }
 
 function m_s_to_millis(m_s) {
@@ -762,4 +824,15 @@ function changeSort() {
         updateTable();
         $("#scores-contain").slideDown("1500", "linear");
     });
+}
+
+function setAllVolumes(vol) {
+    currentVolume = vol;
+    thudSound.setVolume(vol * 2, 0.2);
+    waterdropSound.setVolume(vol, 0.2);
+    hintSound.setVolume(vol * 2, 0.2);
+    switchSound.setVolume(vol * 2, 0.2);
+    victorySound.setVolume(vol * 2, 0.2);
+    evilLaughSound.setVolume(vol * 2, 0.2);
+    backgroundMusic.setVolume(vol, 0.2);
 }

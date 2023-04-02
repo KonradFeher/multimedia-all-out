@@ -9,7 +9,7 @@
   <script src="lib/p5.js"></script>
   <script src="lib/jquery-3.3.1.min.js"></script>
   <script src="lib/jquery-ui.min.js"></script>
-  <!-- <script src="lib/p5.sound.js"></script> -->
+  <script src="lib/p5.sound.js"></script>
   <script src="./all-out.js" lang="js"></script>
   <style>
     body {
@@ -72,8 +72,13 @@
       border: solid 1px#d689d2
     }
 
-    button {
+    button, #sound {
       background-color: #ffb82e;
+    }
+
+    #sound {
+      width: 220px;
+      margin: 20px auto;
     }
 
     label, h1  {
@@ -92,6 +97,8 @@
 </head>
 
 <body>
+  <div id="sound"><img src="./static/speaker-icon.png"></button></div>
+
   <div id="canvas-container"></div>
   <div id="submit-form" title="Submit Score" style="display: none">
     <form onkeydown="return event.key != 'Enter';">
